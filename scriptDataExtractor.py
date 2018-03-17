@@ -11,7 +11,7 @@ qgs = eDH.initializeQGIS()
 state = "NC" #select the state to use
 
 #Code taken and put into bottom
-dataHealer = eDH.electionDataHealer(state,relativeDataDir="../StateData")
+dataHealer = eDH.electionDataHealer(state,relativeDataDir="../stateData")
 
 
 elections = [["11/08/2016",[["NC COMMISSIONER OF INSURANCE","COI16"],
