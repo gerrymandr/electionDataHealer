@@ -25,7 +25,7 @@ class electionDataHealer:
     def __init__(self,state,relativeDataDir="./",outputDir="./output/",qgisDir=""):
         #set shapefile directory
         self.state = state
-        self.stateDataPath = relativeDataDir+"/"+state+"stateData/"
+        self.stateDataPath = relativeDataDir+"/"+state+"StateData/"
         
         #set and make output directory 
         self.outputDir = outputDir
@@ -43,7 +43,7 @@ class electionDataHealer:
                       "have not been set yet (TO DO)"
 
         #set the county name to fips maps
-        cfstr=self.stateDataPath+"/stateData/CountyFIPsCodes.txt"
+        cfstr=self.stateDataPath+"/StateData/CountyFIPsCodes.txt"
         cntyf=open(cfstr)
         self.countyFIPStoNAME = {}
         self.countyNAMEtoFIPS = {}

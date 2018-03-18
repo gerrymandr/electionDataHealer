@@ -7,7 +7,7 @@ class SortedDataRaw(luigi.ExternalTask):
     date = luigi.DateParameter()
 
     def output(self):
-        return luigi.LocalTarget('../StateData/NC/results/sorted/{}.zip'
+        return luigi.LocalTarget('../stateData/NC/results/sorted/{}.zip'
                                  .format(self.date.strftime('%Y%m%d')))
     
     def run(self):
@@ -25,13 +25,13 @@ class UnzippedSortedData(luigi.Task):
         return [SortedDataRaw(date=self.date)]
     
     def output(self):
-        return luigi.LocalTarget('../StateData/NC/results/sorted/results_sort_{}.txt'
+        return luigi.LocalTarget('../stateData/NC/results/sorted/results_sort_{}.txt'
                                  .format(self.date.strftime('%Y%m%d')))
 
     def run(self):
         for infile in self.input():
             z = zipfile.ZipFile(infile.path)
-            z.extractall('../StateData/NC/results/sorted/')        
+            z.extractall('../stateData/NC/results/sorted/')        
 
             
 if __name__ == '__main__':
