@@ -12,6 +12,8 @@ from collections import defaultdict
 from PyQt4.QtCore import *
 from qgis.core import *
 
+import voteCounts
+
 def initializeQGIS():
     qgs = QgsApplication([], False)
 
@@ -82,9 +84,13 @@ class electionDataHealer:
 
             #get county list in current shapefile
             cntyList = self.countyNAMEtoFIPS.keys()
-            #precinctGIDToVotes_Dict = self.getPctVoteCounts(electionDescp,
-            #                                                electionDate,
-            #                                                cntyList)
+            pctCounts = voteCounts.VoteCounts(20161108,
+                                              os.path.join(self.stateDataPath, 'ElectionData'),
+                                              'results_pct_')
+            spctCounts = voteCounts.VoteCounts(20161108,
+                                               os.path.join(self.stateDataPath, 'ElectionData'),
+                                               'results_sort_')
+
             pctGIDToFeat_Dict, pctLayer, pctMetaData = self.getFeaturesFromLayer(
                 'Precinct', electionDate, cntyList)
             vtdGIDToFeat_Dict, vtdLayer, vtdMetaData = self.getFeaturesFromLayer(
@@ -97,7 +103,7 @@ class electionDataHealer:
 
             print 'precinctGIDToVotes_Dict:'
             print pctToVtd.keys()
-            
+
             #precinctGIDToFeatAndVote_Dict = \
             #             self.mergePctVotesWithFeatures(electionDate,
             #                                            precinctGIDToVotes_Dict,
@@ -165,7 +171,7 @@ class electionDataHealer:
     #
     def createVTDToPctDicts(self,vtdIdToFeat,vtdLayer,vtdMetaData,
                                  pctIdToFeat,pctLayer,pctMetaData):
-        
+
         vtdToPct = {}
         pctToVtd = defaultdict(list)
 
@@ -179,7 +185,7 @@ class electionDataHealer:
                 del pctIdToFeat[key]
                 del vtdIdToFeat[key]
 
-        #Build a spatial index of the pcts 
+        #Build a spatial index of the pcts
         pctIndex = QgsSpatialIndex()
         for p in pctIdToFeat.values():
             pctIndex.insertFeature(p)
@@ -221,70 +227,6 @@ class electionDataHealer:
             vtdToPct[vkey] = pctGeoId
             pctToVtd[pctGeoId].append(vkey)
         return vtdToPct, pctToVtd
-
-    def getPctVoteCounts(self,electionDate,cntyList,resultsPrefix):
-        pctGIDToVoteCounts = {}
-        cntyFIPSList = [self.getCountyFIPS(str(c)) for c in cntyList]
-        dateInt = self.getDateInd(electionDate)
-        voteFileStr = os.path.join(self.stateDataPath,"ElectionData",
-                                   "results_sort_"+str(dateInt)+".txt")
-        if not os.path.isfile(voteFileStr):
-            print "ERROR: File", voteFileStr, "does not exist"
-            exit()
-        # voteFileUsortStr = os.path.join(self.stateDataPath,"ElectionData",
-        #                                 "results_pct_"+str(dateInt)+".txt")
-        # if not os.path.isfile(voteFileUsortStr):
-        #     print "ERROR: File", voteFileUsortStr, "does not exist"
-        #     exit()
-
-        voteFile = open(voteFileStr)
-        keyLine  = voteFile.readline().rstrip().replace('\"','').lower()
-        keyLine  = re.split("\t|,",keyLine)
-
-        [cntyKey,pctKey,contestKey,voteCountKey,partyKey,partyDict,
-         csvReaderInfo] = self.getSortedVTDKeys(keyLine,dateInt,voteFileUsortStr)
-
-        for line in voteFile:
-            #hack to eliminate null characters
-            line = line.replace("\0","")
-            #then split the line
-            for sl in csv.reader([line],quotechar=csvReaderInfo[0],
-                           delimiter=csvReaderInfo[1],quoting=csvReaderInfo[2]):
-                splitline = sl
-            cntyFIPs  = self.getCountyFIPS(splitline[cntyKey])
-            contest   = splitline[contestKey].upper()
-
-            if cntyFIPs in cntyFIPSList and\
-               contest in electionDescp:
-                contestInd = electionDescp.index(contest)
-                try:
-                    party = partyDict[splitline[partyKey].lower()]
-                except:
-                    party = "noparty"
-                if "dem" == party.lower():
-                    partyInd = 0
-                elif "rep" == party.lower():
-                    partyInd = 1
-                else:
-                    partyInd = 2
-                if cntyFIPs == "129" and contest=="US SENATE":
-                    print splitline, party, partyInd, splitline[partyKey].lower(), partyKey
-                precinctID = splitline[pctKey]
-                totalVotes = int(splitline[voteCountKey])
-                key = (cntyFIPs,precinctID.lower())
-                if key not in pctGIDToVoteCounts.keys():
-                    pctGIDToVoteCounts[key] = np.zeros((len(electionDescp),3),
-                                                        dtype=int)
-                pctGIDToVoteCounts[key][contestInd,partyInd]+=totalVotes
-        voteFile.close()
-        return pctGIDToVoteCounts
-        #cntyKey      = keyLine.index("county")
-        #pctKey       = keyLine.index("precinct")
-        #contestKey   = [i for i, s in enumerate(keyLine)
-        #                               if ( 'contest' == s or
-        #                                   ('contest' in s and 'name' in s))][0]
-        #voteCountKey = keyLine.index("total votes")
-        #partyKey     = [i for i, s in enumerate(keyLine) if 'party' in s][0]
     #
     def getSortedVTDKeys(self,keyLine,dateInd,voteFileUsortStr):
         if dateInd==20121106:
