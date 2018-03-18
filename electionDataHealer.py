@@ -13,17 +13,19 @@ from qgis.core import *
 
 def initializeQGIS():
     qgs = QgsApplication([], False)
-    p = QgsApplication.prefixPath()
-    if(p):
-        p = raw_input("What is your QGIS path (default is " + p + ")? ") or p
+
+    pathOptions = {'current': QgsApplication.prefixPath(),
+                   'linux': '/usr',
+                   'osx': '/Applications/QGIS.app/Contents/MacOS'}
+    pathOptions['os_default'] = pathOptions[QgsApplication.osName()] if(QgsApplication.osName() in pathOptions) else ''
+    pathChoiceDict = {'0': 'current', '1': 'os_default', '2': 'linux', '3': 'osx'}
+    pathRequestString = 'Select your QGIS path:\n(0) Current value: ' + pathOptions['current'] + '\n(1) Your OS default (' + QgsApplication.osName() + '): ' + pathOptions['os_default'] + '\n(2) Linux default: ' + pathOptions['linux'] + '\n(3) OSX default: ' + pathOptions['osx'] + '\n(4) Other\n? '
+    pathChoice = raw_input(pathRequestString)
+    if(pathChoice in pathChoiceDict):
+        qgs.setPrefixPath(pathOptions[pathChoiceDict[pathChoice]], True)
     else:
-        if(QgsApplication.osName() == u'linux'):
-            p = raw_input("What is your QGIS path (default is /usr)? ") or "/usr"
-        elif(QgsApplication.osName() == u'osx'):
-            p = raw_input("What is your QGIS path (default is /Applications/QGIS.app/Contents/MacOS)? ") or "/Applications/QGIS.app/Contents/MacOS"
-        else:
-            p = raw_input("What is your QGIS path?")
-    qgs.setPrefixPath(p, True)
+        qgs.setPrefixPath(raw_input('Enter your QGIS path: '), True)
+
     qgs.initQgis()
     return qgs
 
