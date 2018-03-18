@@ -1,11 +1,13 @@
+# To download all shapefiles for NC: python downloadRawFiles.py AllVTDData
+# To donwload and unzip all NC election results: python downloadRawFiles.py AllUnzippedSortedData
+
 from datetime import date
 from luigi import Task, ExternalTask, WrapperTask
 from luigi import DateParameter, Parameter, LocalTarget
 import luigi
 import urllib
 import zipfile
-
-#TODO: Make directories as needed.
+import os
 
 
 class DownloadFromUrl(object):
@@ -19,10 +21,11 @@ class DownloadFromUrl(object):
 
 class SortedDataRaw(DownloadFromUrl, ExternalTask):
     date = DateParameter()
+    directory = os.path.join(os.pardir, 'stateData', 'NC', 'sorted')
+    if not os.path.exists(directory): os.makedirs(directory)
 
     def output(self):
-        return LocalTarget('../StateData/NC/sorted/{}.zip'
-                                 .format(self.date.strftime('%Y%m%d')))
+        return LocalTarget(os.path.join(self.directory, '{}.zip').format(self.date.strftime('%Y%m%d')))
 
     def url(self):
         url = self.BASE_URL + 'ENRS/{}/results_sort_{}.zip'.format(
@@ -34,18 +37,19 @@ class SortedDataRaw(DownloadFromUrl, ExternalTask):
 
 class UnzippedSortedData(Task):
     date = DateParameter()
+    directory = os.path.join(os.pardir, 'stateData', 'NC', 'sorted')
+    if not os.path.exists(directory): os.makedirs(directory)
 
     def requires(self):
         return [SortedDataRaw(date=self.date)]
 
     def output(self):
-        return LocalTarget('../StateData/NC/sorted/results_sort_{}.txt'
-                                 .format(self.date.strftime('%Y%m%d')))
+        return LocalTarget(os.path.join(self.directory, 'results_sort_{}').format(self.date.strftime('%Y%m%d')))
 
     def run(self):
         for infile in self.input():
             z = zipfile.ZipFile(infile.path)
-            z.extractall('../StateData/NC/sorted/')        
+            z.extractall(os.path.join(self.directory, 'results_sort_{}').format(self.date.strftime('%Y%m%d')))
 
 class AllUnzippedSortedData(WrapperTask):
     def requires(self):
@@ -53,11 +57,11 @@ class AllUnzippedSortedData(WrapperTask):
         https://dl.ncsbe.gov/?prefix=ENRS/
         Which actually have a results_sort*.zip file.
         """
-        dates = [date(*map(int, x.split('_'))) for x in ['2008_05_06', '2008_06_24',
-                                    '2008_11_04',
-                                    '2009_09_15', '2009_10_06',
-                                    '2009_11_03', '2010_05_04', '2010_06_22',
-                                    '2010_11_02', '2011_09_13', '2011_10_11',
+        dates = [date(*map(int, x.split('_'))) for x in
+                                   ['2008_05_06', '2008_06_24', '2008_11_04',
+                                    '2009_09_15', '2009_10_06', '2009_11_03',
+                                    '2010_05_04', '2010_06_22', '2010_11_02',
+                                    '2011_09_13', '2011_10_11',
                                     '2012_05_08', '2012_07_17',
                                     '2012_11_06', '2013_09_10', '2013_10_08',
                                     '2013_11_05', '2014_05_06', '2014_07_15',
@@ -72,10 +76,11 @@ class ShapeData(DownloadFromUrl, ExternalTask):
     date = DateParameter()
     level = Parameter(default = 'VTD')
     ftp_date_format = Parameter(default = '%Y%m%d')
+    directory = os.path.join(os.pardir, 'stateData', 'NC', 'shapefiles')
+    if not os.path.exists(directory): os.makedirs(directory)
 
     def output(self):
-        return LocalTarget('../StateData/NC/shapefiles/SBE_{}_{}.zip'
-                           .format(self.level, self.date.strftime('%Y%m%d')))
+        return LocalTarget(os.path.join(self.directory, 'SBE_{}_{}.zip').format(self.level, self.date.strftime('%Y%m%d')))
 
     def url(self):
         return self.BASE_URL + 'ShapeFiles/{}/SBE_{}_{}.zip'.format(
