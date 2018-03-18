@@ -20,7 +20,7 @@ def initializeQGIS():
         if(QgsApplication.osName() == u'linux'):
             p = raw_input("What is your QGIS path (default is /usr)? ") or "/usr"
         elif(QgsApplication.osName() == u'osx'):
-            p = raw_input("What is your QGIS path (default is /Applications/QGIS.app/Contents/MacOS; Linux users may want to try /usr)? ") or "/Applications/QGIS.app/Contents/MacOS"
+            p = raw_input("What is your QGIS path (default is /Applications/QGIS.app/Contents/MacOS)? ") or "/Applications/QGIS.app/Contents/MacOS"
         else:
             p = raw_input("What is your QGIS path?")
     qgs.setPrefixPath(p, True)
