@@ -13,7 +13,17 @@ from qgis.core import *
 
 def initializeQGIS():
     qgs = QgsApplication([], False)
-    qgs.setPrefixPath("/Applications/QGIS.app/Contents/MacOS", True)
+    p = QgsApplication.prefixPath()
+    if(p):
+        p = raw_input("What is your QGIS path (default is " + p + ")? ") or p
+    else:
+        if(QgsApplication.osName() == u'linux'):
+            p = raw_input("What is your QGIS path (default is /usr)? ") or "/usr"
+        elif(QgsApplication.osName() == u'osx'):
+            p = raw_input("What is your QGIS path (default is /Applications/QGIS.app/Contents/MacOS; Linux users may want to try /usr)? ") or "/Applications/QGIS.app/Contents/MacOS"
+        else:
+            p = raw_input("What is your QGIS path?")
+    qgs.setPrefixPath(p, True)
     qgs.initQgis()
     return qgs
 
@@ -361,7 +371,7 @@ class electionDataHealer:
                 shapefilePath = shapefilePos[0]
                 newlayer = QgsVectorLayer(shapefilePath, shortName, "ogr")
                 if not newlayer.isValid():
-                    print "Layer failed to load!"
+                    print "Layer failed to load!  You may need to supply a different QGIS path."
                     exit()
                 # add the layer to the registry
                 QgsMapLayerRegistry.instance().addMapLayer(newlayer)
