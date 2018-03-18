@@ -21,6 +21,4 @@ elections = ["11/08/2016",
 
 dataHealer.extractElectionData(elections)
 
-dataHealer.finish()
-
 eDH.finalizeQGIS(qgs)
