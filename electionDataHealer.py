@@ -24,7 +24,7 @@ def initializeQGIS():
             p = raw_input("What is your QGIS path (default is /Applications/QGIS.app/Contents/MacOS)? ") or "/Applications/QGIS.app/Contents/MacOS"
         else:
             p = raw_input("What is your QGIS path?")
-    qgs.setPrefixPath(p, True)
+    qgs.setPrefixPath("/Applications/QGIS.app/Contents/MacOS", True)
     qgs.initQgis()
     return qgs
 
@@ -91,20 +91,16 @@ class electionDataHealer:
             #[vtdToPct, pctToVtd] = self.createVTDToPctDicts()  # LOH
 
             vtdToPct, pctToVtd = self.createVTDToPctDicts(
-                                                     vtdGIDToFeat_Dict,vtdLayer,
-                                                     pctGIDToFeat_Dict,pctLayer)
+                                         vtdGIDToFeat_Dict,vtdLayer,vtdMetaData,
+                                         pctGIDToFeat_Dict,pctLayer,pctMetaData)
 
             print 'precinctGIDToVotes_Dict:'
-            print precinctGIDToVotes_Dict.keys()
-            print 'pctGIDToFeat_Dict:'
-            print pctGIDToFeat_Dict.keys()
-            print 'vtdGIDToFeat_Dict:'
-            print vtdGIDToFeat_Dict.keys()
-
-            precinctGIDToFeatAndVote_Dict = \
-                         self.mergePctVotesWithFeatures(electionDate,
-                                                        precinctGIDToVotes_Dict,
-                                                        pctGIDToFeat_Dict)
+            print pctToVtd.keys()
+            
+            #precinctGIDToFeatAndVote_Dict = \
+            #             self.mergePctVotesWithFeatures(electionDate,
+            #                                            precinctGIDToVotes_Dict,
+            #                                            pctGIDToFeat_Dict)
     #
     def mergePctVotesWithFeatures(self,date,pctGIDToVotes,pctGIDToFeats):
         dateInt = self.getDateInd(date)
@@ -166,10 +162,21 @@ class electionDataHealer:
                 GIDToFeature[(cntyFIPs,pGID.lower())] = p
         return GIDToFeature, curLayer, layerData
     #
-    def createVTDToPctDicts(self,vtdIdToFeat,vtdLayer,pctIdToFeat,pctLayer):
+    def createVTDToPctDicts(self,vtdIdToFeat,vtdLayer,vtdMetaData,
+                                 pctIdToFeat,pctLayer,pctMetaData):
         
         vtdToPct = {}
         pctToVtd = defaultdict(list)
+
+        #check intersections
+        simKeys = set(pctIdToFeat.keys()) & set(vtdIdToFeat.keys())
+        for key in simKeys:
+            if   pctIdToFeat[key].geometry().area() \
+               ==vtdIdToFeat[key].geometry().area() :
+                vtdToPct[key] = key
+                pctToVtd[key].append(key)
+                del pctIdToFeat[key]
+                del vtdIdToFeat[key]
 
         #Build a spatial index of the pcts 
         pctIndex = QgsSpatialIndex()
@@ -184,7 +191,6 @@ class electionDataHealer:
         tr = QgsCoordinateTransform(vtdLayer.crs(),pctLayer.crs())
 
         for vkey,vFeat in vtdIdToFeat.items():
-            print vkey
             vGeom = vFeat.geometry()
             vGeom.transform(tr)
             intersectingIds = pctIndex.intersects(vGeom.boundingBox())
@@ -192,7 +198,9 @@ class electionDataHealer:
             areaRatios = []
             for indfeat in intersectingIds:
                 pctfeat = pctFIDToFeat[indfeat]
-                if self.getCountyFIPS(pctfeat["COUNTY_NAM"])==vkey[0]:
+                pctCnty = pctfeat[pctMetaData[self.META_COUNTY_ID]]
+                pctCFIP = self.getCountyFIPS(pctCnty)
+                if pctCFIP==vkey[0]:
                     pGeom   = pctfeat.geometry()
                     tmpUnion = pGeom.combine(vGeom)
                     areaRat  = (pGeom.area()+vGeom.area()-tmpUnion.area())/vGeom.area()
@@ -364,7 +372,6 @@ class electionDataHealer:
     @staticmethod
     def getDateInd(date=""):
         if len(date)!=10 and len(date)!=0:
-            #raise Exception("error: the date must be empty or in the form 'MM/DD/YYYY'; is in the form " + str(date))
             raise Exception("error: the date must be empty or in the form 'MM/DD/YYYY'; is in the form {}".format(date))
             exit()
         elif len(date)==0:
@@ -375,7 +382,6 @@ class electionDataHealer:
             splitDate = date.split("/")
             dateInt = int(splitDate[2]+splitDate[0]+splitDate[1])
         return dateInt
-    #
     #
     def getPreexistingShapeFilePath(self,level,dateInt,districtingPlan=False,
                                     verbose=False):
@@ -445,12 +451,6 @@ class electionDataHealer:
         self.outputDir = outputDir
         if not os.path.exists(self.outputDir):
             os.makedirs(self.outputDir)
-    #
-    def resetShapefile(self):
-        self.shapefilePath = ""
-    #
-    def finish(self):
-        self.resetShapefile()
     #
     @classmethod
     def getShortName(cls, metaline):
