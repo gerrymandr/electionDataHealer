@@ -67,19 +67,16 @@ class electionDataHealer:
             electionDate = listOfElectionData[electionDateIndex][0]
             print "Extracting election data from ", electionDate
 
-            electionsAtDate = listOfElectionData[electionDateIndex][1]
-
-            noElections = len(electionsAtDate) 
-            electionDescp = [eN[0] for eN in electionsAtDate]
-            electionShort = [eN[1] for eN in electionsAtDate]
-
             #get county list in current shapefile
             cntyList = self.countyNAMEtoFIPS.keys()
-            print cntyList
-            print [self.getCountyName(str(cnty).zfill(3)) for cnty in cntyList]
+            
             precinctGIDToVotes_Dict = self.getPctVoteCounts(electionDescp,
             	                                            electionDate,
             	                                            cntyList)
+            #precinctGIDToVotes_Dict = self.getVTDVoteCounts(electionDescp,
+            #                                                electionDate,
+            #                                                cntyList)
+            
             precintGIDToFeat_Dict = self.getPctFeaturesFromLayer(electionDate,
             	                                                 cntyList)
             print precinctGIDToVotes_Dict.keys()
