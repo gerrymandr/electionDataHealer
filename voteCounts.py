@@ -68,6 +68,25 @@ FIELD_MAPS = {
 
 
 class VoteCounts(object):
+    CONTEST_FILTER = [
+        'NC GOVERNOR',
+        'NC COMMISSIONER OF AGRICULTURE',
+        'US SENATE',
+        'US HOUSE OF REPRESENTATIVES',
+        'NC SECRETARY OF STATE',
+        'NC SUPERINTENDENT OF PUBLIC INSTRUCTION',
+        'US PRESIDENT',
+        'NC AUDITOR',
+        'NC STATE SENATE',
+        'CAMDEN COUNTY BOARD OF COMMISSIONERS COURTHOUSE',
+        'NC HOUSE OF REPRESENTATIVES',
+        'NC TREASURER',
+        'NC COMMISSIONER OF LABOR',
+        'NC LIEUTENANT GOVERNOR',
+        'NC COMMISSIONER OF INSURANCE',
+        'NC ATTORNEY GENERAL',
+    ]
+
     def __init__(self, dateInd, dataPath, prefix):
         basename = '{}{}.txt'.format(prefix, dateInd)
         config = FIELD_MAPS[basename]
@@ -75,3 +94,8 @@ class VoteCounts(object):
         print(self.path)
         # The arguments for reading CSV come straight out of the config dictionary
         self.df = pd.read_table(self.path, **config['read_kwargs'])
+        # TODO: filter dataframe for specific contests using CONTEST_FILTER
+        # TODO: upper case county names, contest names on load
+
+    def getCountyRows(self, county_name):
+        return self.df.loc[self.df[Fields.COUNTY_FIELD] == county_name]

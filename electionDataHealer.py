@@ -84,6 +84,8 @@ class electionDataHealer:
 
             #get county list in current shapefile
             cntyList = self.countyNAMEtoFIPS.keys()
+            # NOTE: currently dealing with county names with vote counts -- generalize to handle
+            # FIPS?
             pctCounts = voteCounts.VoteCounts(20161108,
                                               os.path.join(self.stateDataPath, 'ElectionData'),
                                               'results_pct_')
@@ -97,6 +99,27 @@ class electionDataHealer:
                 'VTD', electionDate, cntyList)
             #[vtdToPct, pctToVtd] = self.createVTDToPctDicts()  # LOH
 
+            for county_name in self.countyNAMEtoFIPS.keys():
+                cnts = pctCounts.getCountyRows(county_name)
+                scnts = spctCounts.getCountyRows(county_name)
+                for contest in voteCounts.VoteCounts.CONTEST_FILTER:
+                    # TODO - sort out later
+                    pctContestCounts = cnts.loc[cnts[voteCounts.Fields.CONTEST_FIELD] == contest]
+                    spctContestCounts = scnts.loc[scnts[voteCounts.Fields.CONTEST_FIELD] == contest]
+                    pctChoices = pctContestCounts[voteCounts.Fields.CHOICE_FIELD].unique()
+                    spctChoices = spctContestCounts[voteCounts.Fields.CHOICE_FIELD].unique()
+                    allChoices = set(pctChoices) | set(spctChoices)
+                    allChoices -= set(['OVER VOTES', 'UNDER VOTES'])
+                    for choice in allChoices:
+                        pctChoiceCounts = pctContestCounts.loc[pctContestCounts[
+                            voteCounts.Fields.CHOICE_FIELD] == choice]
+                        spctChoiceCounts = spctContestCounts.loc[spctContestCounts[
+                            voteCounts.Fields.CHOICE_FIELD] == choice]
+                        print(pctChoiceCounts)
+                        print(pctChoiceCounts[voteCounts.Fields.TOTAL_VOTE_FIELD].sum())
+                        print(spctChoiceCounts[voteCounts.Fields.TOTAL_VOTE_FIELD].sum())
+
+            import pdb; pdb.set_trace()
             vtdToPct, pctToVtd = self.createVTDToPctDicts(
                                          vtdGIDToFeat_Dict,vtdLayer,vtdMetaData,
                                          pctGIDToFeat_Dict,pctLayer,pctMetaData)
@@ -104,10 +127,8 @@ class electionDataHealer:
             print 'precinctGIDToVotes_Dict:'
             print pctToVtd.keys()
 
-            #precinctGIDToFeatAndVote_Dict = \
-            #             self.mergePctVotesWithFeatures(electionDate,
-            #                                            precinctGIDToVotes_Dict,
-            #                                            pctGIDToFeat_Dict)
+            precinctGIDToFeatAndVote_Dict = self.mergePctVotesWithFeatures(
+                electionDate, precinctGIDToVotes_Dict, pctGIDToFeat_Dict)
     #
     def mergePctVotesWithFeatures(self,date,pctGIDToVotes,pctGIDToFeats):
         dateInt = self.getDateInd(date)
