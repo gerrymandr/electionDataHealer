@@ -14,13 +14,9 @@ state = "NC" #select the state to use
 dataHealer = eDH.electionDataHealer(state,relativeDataDir="../stateData")
 
 
-elections = [["11/08/2016",[["NC COMMISSIONER OF INSURANCE","COI16"],
-			                ["NC GOVERNOR","GOV16"],
-			               ]
-			 ],
-			 #["11/04/2014",[["US SENATE", "USS14"]]],
-			 #["11/06/2012",[["PRESIDENT AND VICE PRESIDENT OF THE UNITED "\
-			 #                +"STATES","PRE12"]]],
+elections = ["11/08/2016",
+			 #"11/04/2014",
+			 #"11/06/2012",           
 		    ]
 
 dataHealer.extractElectionData(elections)
