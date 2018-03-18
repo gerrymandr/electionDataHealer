@@ -8,6 +8,7 @@ import platform
 import qgis
 import re
 
+from collections import defaultdict
 from PyQt4.QtCore import *
 from qgis.core import *
 
@@ -73,21 +74,13 @@ class electionDataHealer:
             self.countyNAMEtoFIPS[NAME] = FIPS
         cntyf.close()
     #
-    def setMap(self,path):
-        self.shapefilePath = path
-        self.dataDescriptor = path[path.rfind("/")+1:-4]
-        if not os.path.isfile(self.shapefilePath):
-            print "error: no such file", self.shapefilePath
-            exit()
-    #
     def extractElectionData(self,listOfElectionData):
         for electionDateIndex in range(len(listOfElectionData)):
-            electionDate = listOfElectionData[electionDateIndex][0]
+            electionDate = listOfElectionData[electionDateIndex]
             print "Extracting election data from ", electionDate
 
             #get county list in current shapefile
             cntyList = self.countyNAMEtoFIPS.keys()
-
             precinctGIDToVotes_Dict = self.getPctVoteCounts(electionDescp,
                                                             electionDate,
                                                             cntyList)
@@ -96,6 +89,10 @@ class electionDataHealer:
             vtdGIDToFeat_Dict, vtdLayer, vtdMetaData = self.getFeaturesFromLayer(
                 'VTD', electionDate, cntyList)
             #[vtdToPct, pctToVtd] = self.createVTDToPctDicts()  # LOH
+
+            vtdToPct, pctToVtd = self.createVTDToPctDicts(
+                                                     vtdGIDToFeat_Dict,vtdLayer,
+                                                     pctGIDToFeat_Dict,pctLayer)
 
             print 'precinctGIDToVotes_Dict:'
             print precinctGIDToVotes_Dict.keys()
@@ -169,21 +166,67 @@ class electionDataHealer:
                 GIDToFeature[(cntyFIPs,pGID.lower())] = p
         return GIDToFeature, curLayer, layerData
     #
-    def getPctVoteCounts(self,electionDescp,electionDate,cntyList):
+    def createVTDToPctDicts(self,vtdIdToFeat,vtdLayer,pctIdToFeat,pctLayer):
+        
+        vtdToPct = {}
+        pctToVtd = defaultdict(list)
+
+        #Build a spatial index of the pcts 
+        pctIndex = QgsSpatialIndex()
+        for p in pctIdToFeat.values():
+            pctIndex.insertFeature(p)
+
+        #Build an FID to feature dict
+        pctFIDToFeat  = { p.id():p for p in pctIdToFeat.values() }
+        pctFIDToGEOID = { pctIdToFeat[p].id():p for p in pctIdToFeat.keys() }
+
+        #Set up a coordinate transform to map from vtds to pcts
+        tr = QgsCoordinateTransform(vtdLayer.crs(),pctLayer.crs())
+
+        for vkey,vFeat in vtdIdToFeat.items():
+            print vkey
+            vGeom = vFeat.geometry()
+            vGeom.transform(tr)
+            intersectingIds = pctIndex.intersects(vGeom.boundingBox())
+
+            areaRatios = []
+            for indfeat in intersectingIds:
+                pctfeat = pctFIDToFeat[indfeat]
+                if self.getCountyFIPS(pctfeat["COUNTY_NAM"])==vkey[0]:
+                    pGeom   = pctfeat.geometry()
+                    tmpUnion = pGeom.combine(vGeom)
+                    areaRat  = (pGeom.area()+vGeom.area()-tmpUnion.area())/vGeom.area()
+                    if areaRat>0:
+                        areaRatios.append([areaRat,indfeat])
+            maxRatio = 0
+            indFeat  = 0
+
+            if len(areaRatios)==0:
+                raise Exception("error - no intersecting precincts found in v.id() {}".format(vkey))
+
+            for item in areaRatios:
+                if item[0]>maxRatio:
+                    maxRatio=item[0]
+                    indFeat=item[1]
+            pctGeoId = pctFIDToGEOID[indFeat]
+            vtdToPct[vkey] = pctGeoId
+            pctToVtd[pctGeoId].append(vkey)
+        return vtdToPct, pctToVtd
+
+    def getPctVoteCounts(self,electionDate,cntyList,resultsPrefix):
         pctGIDToVoteCounts = {}
         cntyFIPSList = [self.getCountyFIPS(str(c)) for c in cntyList]
         dateInt = self.getDateInd(electionDate)
-        print dateInt
         voteFileStr = os.path.join(self.stateDataPath,"ElectionData",
                                    "results_sort_"+str(dateInt)+".txt")
         if not os.path.isfile(voteFileStr):
             print "ERROR: File", voteFileStr, "does not exist"
             exit()
-        voteFileUsortStr = os.path.join(self.stateDataPath,"ElectionData",
-                                        "results_pct_"+str(dateInt)+".txt")
-        if not os.path.isfile(voteFileUsortStr):
-            print "ERROR: File", voteFileUsortStr, "does not exist"
-            exit()
+        # voteFileUsortStr = os.path.join(self.stateDataPath,"ElectionData",
+        #                                 "results_pct_"+str(dateInt)+".txt")
+        # if not os.path.isfile(voteFileUsortStr):
+        #     print "ERROR: File", voteFileUsortStr, "does not exist"
+        #     exit()
 
         voteFile = open(voteFileStr)
         keyLine  = voteFile.readline().rstrip().replace('\"','').lower()
@@ -321,7 +364,8 @@ class electionDataHealer:
     @staticmethod
     def getDateInd(date=""):
         if len(date)!=10 and len(date)!=0:
-            print "error: the date must be empty or in the form 'MM/DD/YYYY'"
+            #raise Exception("error: the date must be empty or in the form 'MM/DD/YYYY'; is in the form " + str(date))
+            raise Exception("error: the date must be empty or in the form 'MM/DD/YYYY'; is in the form {}".format(date))
             exit()
         elif len(date)==0:
             now    = datetime.datetime.now()
