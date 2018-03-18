@@ -31,13 +31,21 @@ def finalizeQGIS(qgs):
     qgs.exitQgis()
 
 class electionDataHealer:
+    # Field names in metaShapeFileData.dat
+    META_LEVEL = "Level"
+    META_DATE = "Date"
+    META_LOCATION = "Location"
+    META_SOURCE = "Source"
+    META_IS_DISTRICTING_PLAN = "DistrictingPlan_huh"
+    META_COUNTY_ID = "CountyID"
+    META_GEO_ID = "GEOID"
 
     def __init__(self,state,relativeDataDir="./",outputDir="./output/",qgisDir=""):
         #set shapefile directory
         self.state = state
         self.stateDataPath = relativeDataDir+"/"+state+"StateData/"
-        
-        #set and make output directory 
+
+        #set and make output directory
         self.outputDir = outputDir
         if not os.path.exists(self.outputDir):
             os.makedirs(self.outputDir)
@@ -79,23 +87,27 @@ class electionDataHealer:
 
             #get county list in current shapefile
             cntyList = self.countyNAMEtoFIPS.keys()
-            
+
             precinctGIDToVotes_Dict = self.getPctVoteCounts(electionDescp,
-            	                                            electionDate,
-            	                                            cntyList)
-            #precinctGIDToVotes_Dict = self.getVTDVoteCounts(electionDescp,
-            #                                                electionDate,
-            #                                                cntyList)
-            
-            precintGIDToFeat_Dict = self.getPctFeaturesFromLayer(electionDate,
-                                                                 cntyList)
+                                                            electionDate,
+                                                            cntyList)
+            pctGIDToFeat_Dict, pctLayer, pctMetaData = self.getFeaturesFromLayer(
+                'Precinct', electionDate, cntyList)
+            vtdGIDToFeat_Dict, vtdLayer, vtdMetaData = self.getFeaturesFromLayer(
+                'VTD', electionDate, cntyList)
+            #[vtdToPct, pctToVtd] = self.createVTDToPctDicts()  # LOH
+
+            print 'precinctGIDToVotes_Dict:'
             print precinctGIDToVotes_Dict.keys()
-            print precintGIDToFeat_Dict.keys()
+            print 'pctGIDToFeat_Dict:'
+            print pctGIDToFeat_Dict.keys()
+            print 'vtdGIDToFeat_Dict:'
+            print vtdGIDToFeat_Dict.keys()
 
             precinctGIDToFeatAndVote_Dict = \
                          self.mergePctVotesWithFeatures(electionDate,
                                                         precinctGIDToVotes_Dict,
-                                                        precintGIDToFeat_Dict)
+                                                        pctGIDToFeat_Dict)
     #
     def mergePctVotesWithFeatures(self,date,pctGIDToVotes,pctGIDToFeats):
         dateInt = self.getDateInd(date)
@@ -135,25 +147,27 @@ class electionDataHealer:
 
         return pctVoteFeat_Dict
     #
-    def getPctFeaturesFromLayer(self,electionDate,cntyList):
-        pctGIDToFeature = {}
+    def getFeaturesFromLayer(self,level,electionDate,cntyList):
+        GIDToFeature = {}
         print cntyList
         cntyNameList = [self.getCountyName(str(c)) for c in cntyList]
         dateInt   = self.getDateInd(electionDate)
-        layerData = self.getPreexistingShapeFilePath("Precinct",dateInt)
+        layerData = self.getPreexistingShapeFilePath(level,dateInt,verbose=True)
         layers    = self.loadShapefilesIntoLayers([layerData])
-        shortName = layerData[0]+str(self.getDateInd(layerData[1]))
+        shortName = self.getShortName(layerData)
+        county_id = layerData[self.META_COUNTY_ID]
+        geo_id = layerData[self.META_GEO_ID]
         for layer in layers:
             if layer.name()==shortName:
-                curPctLayer = layer
-        pctDict = {p.id():p for p in curPctLayer.getFeatures()}
-        for p in pctDict.values():
-            cnty = p["COUNTY_NAM"].lower().replace("_"," ")
+                curLayer = layer
+        featureDict = {p.id():p for p in curLayer.getFeatures()}
+        for p in featureDict.values():
+            cnty = p[county_id].lower().replace("_"," ")
             if cnty in cntyNameList:
-                pGID = p["PREC_ID"]
+                pGID = p[geo_id]
                 cntyFIPs = self.getCountyFIPS(cnty)
-                pctGIDToFeature[(cntyFIPs,pGID.lower())] = p
-        return pctGIDToFeature
+                GIDToFeature[(cntyFIPs,pGID.lower())] = p
+        return GIDToFeature, curLayer, layerData
     #
     def getPctVoteCounts(self,electionDescp,electionDate,cntyList):
         pctGIDToVoteCounts = {}
@@ -304,7 +318,8 @@ class electionDataHealer:
             exit()
         return countyField
     #
-    def getDateInd(self,date=""):
+    @staticmethod
+    def getDateInd(date=""):
         if len(date)!=10 and len(date)!=0:
             print "error: the date must be empty or in the form 'MM/DD/YYYY'"
             exit()
@@ -321,46 +336,50 @@ class electionDataHealer:
     def getPreexistingShapeFilePath(self,level,dateInt,districtingPlan=False,
                                     verbose=False):
         shapeMetaData=open(self.stateDataPath+"/metaShapeFileData.dat")
-        keyLine = shapeMetaData.readline() #burn the key line
+        def parseLine(line):
+            return line.rstrip().split("\t")
+        fieldnames = parseLine(shapeMetaData.readline())
         curDateInt = 0
         lineToUse = ["County","","","","","",""]
         for line in shapeMetaData:
-            splitline = line.rstrip().split("\t")
-            if splitline[4]=="False":
+            splitline = parseLine(line)
+            # Create a dict mapping field names to the line values
+            fields = dict(zip(fieldnames, splitline))
+            if fields[self.META_IS_DISTRICTING_PLAN]=="False":
                 curDistPlan = False
-            elif splitline[4]=="True":
+            elif fields[self.META_IS_DISTRICTING_PLAN]=="True":
                 curDistPlan = True
             else:
-                print "error: shapefiles are either districting plans or not",
-                print "error found in metaShapeFileData.dat, line:", line
-                exit()
-            if level==splitline[0] and districtingPlan==curDistPlan:
-                testDateInt = self.getDateInd(splitline[1])
+                raise Exception("error: shapefiles are either districting plans or not\n"
+                                "error found in metaShapeFileData.dat, line: {}".format(line))
+            if level==fields[self.META_LEVEL] and districtingPlan==curDistPlan:
+                testDateInt = self.getDateInd(fields[self.META_DATE])
                 if testDateInt <= dateInt and testDateInt > curDateInt:
                     curDateInt = testDateInt
-                    lineToUse = splitline
+                    lineToUse = fields
         shapeMetaData.close()
 
         if verbose:
             print "Using pre-existing shapefile data:"
-            print "  Level:", lineToUse[0]
-            print "  Date:", lineToUse[1]
-            print "  Shapefile:", lineToUse[2]
-            print "  Source:", lineToUse[3]
+            print "  Level:", lineToUse[self.META_LEVEL]
+            print "  Date:", lineToUse[self.META_DATE]
+            print "  Shapefile:", lineToUse[self.META_LOCATION]
+            print "  Source:", lineToUse[self.META_SOURCE]
         return lineToUse
     #
     def loadShapefilesIntoLayers(self,shapefileList):
         layers = QgsMapLayerRegistry.instance().mapLayers().values()
         curDir = os.getcwd()
         for LAYER_NAME in shapefileList:
-            shortName = LAYER_NAME[0]+str(self.getDateInd(LAYER_NAME[1]))
+            shortName = self.getShortName(LAYER_NAME)
             layerLoaded = False
             for layerQ in layers:
                 if layerQ.name() == shortName:
                     layerLoaded = True
-            if not layerLoaded and LAYER_NAME[2]!="":
+            location = LAYER_NAME[self.META_LOCATION]
+            if not layerLoaded and location!="":
                 regexShapeFilePath = curDir+"/"+self.stateDataPath +\
-                                     "/Shapefiles/" + LAYER_NAME[2]+"/*.shp"
+                                     "/Shapefiles/" + location+"/*.shp"
                 shapefilePos  = glob.glob(regexShapeFilePath)
                 if len(shapefilePos)>1:
                     print "WARNING: Multiple shapefiles found in layer name",\
@@ -388,3 +407,7 @@ class electionDataHealer:
     #
     def finish(self):
         self.resetShapefile()
+    #
+    @classmethod
+    def getShortName(cls, metaline):
+        return metaline[cls.META_LEVEL]+str(cls.getDateInd(metaline[cls.META_DATE]))
