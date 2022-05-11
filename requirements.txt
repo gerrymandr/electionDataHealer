@@ -1,2 +1,0 @@
-# NOTE: also need to link to QGIS installation which has other versions/copies of Python libs
-pandas>=0.22
